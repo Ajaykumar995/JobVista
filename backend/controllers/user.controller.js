@@ -139,14 +139,16 @@ export const updateProfile = async (req, res) => {
             })
         }
 
-        // 2. Handle File Upload (ONLY if a file is actually provided)
+        console.log("DEBUG FILE:", file);
+       // 2. Handle File Upload
         let cloudResponse;
         if (file) {
             const fileUri = getDataUri(file);
+            
+            // 👇 THIS IS THE FIX
             cloudResponse = await cloudinary.uploader.upload(fileUri.content, {
-                resource_type: "raw", 
-                format: "pdf",        
-                public_id: file.originalname.split('.')[0] 
+                resource_type: "auto",  // Let Cloudinary sniff the 'application/pdf' mimetype
+                public_id: file.originalname.split('.')[0]
             });
         }
 
