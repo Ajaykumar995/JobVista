@@ -2,43 +2,56 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+
 import connectDB from "./utils/db.js";
 import userRoute from "./routes/user.route.js";
 import companyRoute from "./routes/company.route.js";
 import jobRoute from "./routes/job.route.js";
 import applicationRoute from "./routes/application.route.js";
-dotenv.config({});
+
+dotenv.config();
+
 const app = express();
 
-
-//middleware
+// ✅ middleware
 app.use(express.json());
-app.use(express.urlencoded({extended:true}));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// ✅ CORS (fixed for production)
 const corsOptions = {
-    origin: "http://localhost:5173",
-    credentials: true,
-}
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  credentials: true,
+};
 
 app.use(cors(corsOptions));
-const PORT = process.env.PORT || 8000;
-// app.get("/home",(req,res) =>{
-//     return res.status(200).json({
-//         message : "I am coming from backend",
-//         success:true
-//     })
-// });
 
-//api
+// ✅ routes
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/company", companyRoute);
 app.use("/api/v1/job", jobRoute);
 app.use("/api/v1/application", applicationRoute);
 
+// ✅ test route
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
 
+app.use((err, req, res, next) => {
+  console.error(err.message);
+  res.status(500).json({ success: false, message: err.message });
+});
 
-// const PORT = 3000;
-app.listen(PORT,() => {
-    connectDB();
-    console.log(`Server running at port ${PORT}`);
-})
+// ✅ PORT
+const PORT = process.env.PORT || 8000;
+
+// ✅ connect DB first, then start server
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running at port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Database connection failed:", err.message);
+  });

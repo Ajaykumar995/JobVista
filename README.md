@@ -21,6 +21,11 @@ It facilitates a seamless connection between job seekers and employers, offering
 
 ---
 
+## 🌍 Live Demo
+
+🔗 Frontend: https://storied-gumdrop-21911f.netlify.app  
+🔗 Backend API: https://jobvista-ta6e.onrender.com 
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
