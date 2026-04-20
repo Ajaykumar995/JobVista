@@ -2,29 +2,29 @@ import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import getDataUri from "../utils/datauri.js";
-// 👇 1. Import Cloudinary directly from the package
-import { v2 as cloudinary } from 'cloudinary'; 
-import dotenv from "dotenv"; 
+import { v2 as cloudinary } from 'cloudinary';
+import dotenv from "dotenv";
 
 dotenv.config({ path: "./.env" });
 
-// 👇 2. Configure it RIGHT HERE (Bypasses the import error)
 cloudinary.config({
     cloud_name: process.env.CLOUD_NAME,
     api_key: process.env.API_KEY,
     api_secret: process.env.API_SECRET
 });
 
+// ================= REGISTER =================
 export const register = async (req, res) => {
     try {
         const { fullname, email, phoneNumber, password, role } = req.body;
-         
+
         if (!fullname || !email || !phoneNumber || !password || !role) {
             return res.status(400).json({
                 message: "Something is missing",
                 success: false
             });
-        };
+        }
+
         const file = req.file;
         const fileUri = getDataUri(file);
         const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
@@ -32,10 +32,11 @@ export const register = async (req, res) => {
         const user = await User.findOne({ email });
         if (user) {
             return res.status(400).json({
-                message: 'User already exist with this email.',
+                message: 'User already exists.',
                 success: false,
-            })
+            });
         }
+
         const hashedPassword = await bcrypt.hash(password, 10);
 
         await User.create({
@@ -44,8 +45,8 @@ export const register = async (req, res) => {
             phoneNumber,
             password: hashedPassword,
             role,
-            profile:{
-                profilePhoto:cloudResponse.secure_url,
+            profile: {
+                profilePhoto: cloudResponse.secure_url,
             }
         });
 
@@ -53,15 +54,17 @@ export const register = async (req, res) => {
             message: "Account created successfully.",
             success: true
         });
+
     } catch (error) {
         console.log(error);
     }
-}
+};
+
+// ================= LOGIN =================
 export const login = async (req, res) => {
     try {
         const { email, password, role } = req.body;
 
-        // ✅ validation
         if (!email || !password || !role) {
             return res.status(400).json({
                 message: "Something is missing",
@@ -69,7 +72,6 @@ export const login = async (req, res) => {
             });
         }
 
-        // ✅ check user
         let user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({
@@ -78,7 +80,6 @@ export const login = async (req, res) => {
             });
         }
 
-        // ✅ check password
         const isPasswordMatch = await bcrypt.compare(password, user.password);
         if (!isPasswordMatch) {
             return res.status(400).json({
@@ -87,7 +88,6 @@ export const login = async (req, res) => {
             });
         }
 
-        // ✅ check role
         if (role !== user.role) {
             return res.status(400).json({
                 message: "Account doesn't exist with current role.",
@@ -95,16 +95,12 @@ export const login = async (req, res) => {
             });
         }
 
-        // ✅ create token
-        const tokenData = {
-            userId: user._id
-        };
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
 
-        const token = jwt.sign(tokenData, process.env.JWT_SECRET, {
-            expiresIn: "1d"
-        });
-
-        // ✅ safe user object
         user = {
             _id: user._id,
             fullname: user.fullname,
@@ -114,13 +110,12 @@ export const login = async (req, res) => {
             profile: user.profile
         };
 
-        // ✅ COOKIE FIX (MOST IMPORTANT 🔥)
         return res
             .status(200)
             .cookie("token", token, {
                 httpOnly: true,
-                secure: true,          // required for HTTPS (Render)
-                sameSite: "None",      // required for cross-origin (Netlify)
+                secure: true,
+                sameSite: "None",
                 maxAge: 1 * 24 * 60 * 60 * 1000
             })
             .json({
@@ -131,78 +126,75 @@ export const login = async (req, res) => {
 
     } catch (error) {
         console.log(error);
-        res.status(500).json({
-            message: "Server error",
-            success: false
-        });
     }
 };
+
+// ================= LOGOUT (🔥 FIX) =================
+export const logout = async (req, res) => {
+    try {
+        return res
+            .status(200)
+            .cookie("token", "", {
+                httpOnly: true,
+                secure: true,
+                sameSite: "None",
+                expires: new Date(0)
+            })
+            .json({
+                message: "Logged out successfully.",
+                success: true
+            });
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+// ================= UPDATE PROFILE =================
 export const updateProfile = async (req, res) => {
     try {
         const { fullname, email, phoneNumber, bio, skills } = req.body;
-        
+
         const file = req.file;
-        
-        // 1. Get the user first to make sure they exist
-        const userId = req.id; // middleware authentication
+        const userId = req.id;
+
         let user = await User.findById(userId);
 
         if (!user) {
             return res.status(400).json({
                 message: "User not found.",
                 success: false
-            })
+            });
         }
 
-        console.log("DEBUG FILE:", file);
-       // 2. Handle File Upload
         let cloudResponse;
         if (file) {
             const fileUri = getDataUri(file);
-            
-            // 👇 THIS IS THE FIX
             cloudResponse = await cloudinary.uploader.upload(fileUri.content, {
-                resource_type: "auto",  // Let Cloudinary sniff the 'application/pdf' mimetype
+                resource_type: "auto",
                 public_id: file.originalname.split('.')[0]
             });
         }
 
-        let skillsArray;
-        if(skills){
-            skillsArray = skills.split(",");
-        }
-        
-        // 3. Update Text Fields
-        if(fullname) user.fullname = fullname
-        if(email) user.email = email
-        if(phoneNumber)  user.phoneNumber = phoneNumber
-        if(bio) user.profile.bio = bio
-        if(skills) user.profile.skills = skillsArray
-      
-        // 4. Update Resume URL (Only if cloudResponse exists)
-        if(cloudResponse){
-            user.profile.resume = cloudResponse.secure_url // save the cloudinary url
-            user.profile.resumeOriginalName = file.originalname // Save the original file name
+        if (fullname) user.fullname = fullname;
+        if (email) user.email = email;
+        if (phoneNumber) user.phoneNumber = phoneNumber;
+        if (bio) user.profile.bio = bio;
+        if (skills) user.profile.skills = skills.split(",");
+
+        if (cloudResponse) {
+            user.profile.resume = cloudResponse.secure_url;
+            user.profile.resumeOriginalName = file.originalname;
         }
 
         await user.save();
 
-        user = {
-            _id: user._id,
-            fullname: user.fullname,
-            email: user.email,
-            phoneNumber: user.phoneNumber,
-            role: user.role,
-            profile: user.profile
-        }
-
         return res.status(200).json({
-            message:"Profile updated successfully.",
+            message: "Profile updated successfully.",
             user,
-            success:true
-        })
+            success: true
+        });
+
     } catch (error) {
         console.log(error);
-        res.status(500).json({ message: "Server error", success: false });
     }
-}
+};
