@@ -21,11 +21,15 @@ app.set("trust proxy", 1);
 
 // ✅ CORS (fixed for production)
 const corsOptions = {
-  origin: ["http://localhost:5173", process.env.CLIENT_URL].filter(Boolean),
+  origin: [
+    "http://localhost:5173",
+    "https://jazzy-squirrel-c4b3a1.netlify.app"
+  ],
   credentials: true,
 };
 
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); 
 
 // ✅ routes
 app.use("/api/v1/user", userRoute);
