@@ -29,7 +29,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); 
+app.options(/.*/, cors(corsOptions)); 
 
 // ✅ routes
 app.use("/api/v1/user", userRoute);
